@@ -1,62 +1,46 @@
 import struct
 import csv
+import sys
 
 def read_fit_file(filename):
     with open(filename, 'rb') as f:
         data = f.read()
-    
-    # Header fields: Activity type, start time, end time (example VLIs)
-    header_length = 24
-    if len(data) >= header_length:
-        header = struct.unpack('<I*I*', data[:header_length])
-        activity_type = header[0]
-        start_time = header[1].decode('latin-1')
-        end_time = header[2].decode('latin-1')
-    else:
-        return None, None, None, []
-    
-    # Read records
-    record_count = struct.unpack('<I', data[header_length:header_length+4])[0]
-    count = 0
-    records = []
-    while count < record_count:
-        # Each record starts with a 2-byte integer (number of attributes)
-        num_attributes = struct.unpack('<H', data[header_length + 4 * count:header_length + 4 * count + 2])[0]
-        if num_attributes >= 13:
-            break
-        # Extract heart rate and calories burned
-        heart_rate = int(data[header_length + 4 * count + 5]) if (num_attributes > 6) else None
-        calories_burned = data[header_length + 4 * count + 7: header_length + 4 * count + 11].decode('latin-1') if (num_attributes > 7) else None
-        
-        records.append((heart_rate, calories_burned))
-        count += 1
-    
-    return activity_type, start_time, end_time, records
+
+    # Extract major version (2 bytes, big-endian)
+    major_ver = struct.unpack('>H', data[0:2])[0]
+
+    # Extract minor version (1 byte, big-endian)
+    minor_ver = struct.unpack('>B', data[2:3])[0]
+
+    # Extract revision count and size type (each 2 bytes, big-endian; total 4 bytes)
+    rev_size_type = struct.unpack('>II', data[4:8])[0]  # First two bytes for revisions
+
+    # Determine number of records (4 bytes, big-endian starting from position 8)
+    num_records = struct.unpack('>I', data[8:12])[0]
+
+    print(f"Major Version: {major_ver}")
+    print(f"Minor Version: {minor_ver}")
+    print(f"Revisions/Size Type: {rev_size_type}")
+    print(f"Number of Records: {num_records}")
+
+    return rev_size_type, major_ver, minor_ver, num_records
 
 def main():
-    import sys
     filename = sys.argv[1]
-    
-    activity_type, start_time, end_time, records = read_fit_file(filename)
-    
-    if not records:
-        print("No records found in the .fit file.")
-        return
-    
-    heart_rate = []
-    calories_burned = []
-    
-    for record in records:
-        heart_rate.append(record[0])
-        calories_burned.append(record[1])
-    
-    header = ['Heart Rate', 'Calories Burned']
-    with open('output.csv', 'w', newline='', encoding='utf-8') as csvfile:
+
+    # Read the header
+    _, _, _, num_records = read_fit_file(filename)
+
+    activities = []  # Activity data extraction logic here
+
+    headers = ['Major Version', 'Minor Version', 'Revisions/Size Type', 'Number of Records']
+    for i in range(num_records):
+        headers.append(f'Activity {i}')
+
+    with open('output.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(header)
-        
-        for i in range(len(heart_rate)):
-            writer.writerow([heart_rate[i], calories_burned[i]])
+        writer.writerow(headers)
+        writer.writerows(activities)
 
 if __name__ == "__main__":
     main()
