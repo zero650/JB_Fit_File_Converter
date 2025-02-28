@@ -2,113 +2,81 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>FIT File Analyzer</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-        }
-        input[type="file"] {
-            accept: "fit,*.*";
-            name="fitFiles"
-            multiple;
-        }
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-    </style>
+    <title>Fit File Converter</title>
+    <script src="https://cdn.jsdelivr.net/npm/express@4.17.1/dist/express.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/socket.io@2.3.0/dist/socket.io.min.js"></script>
 </head>
 <body>
-    <h1>FIT File Analyzer</h1>
-    <form id="fileUploader">
-        <div class="form-group">
-            <label for="fitFiles">Upload FIT files:</label>
-            <input type="file" id="fitFiles" accept=".fit" multiple>
-        </div>
-        <button onclick="processFiles()" style="margin-top: 10px;">Analyze Files</button>
+    <h1>Fit File Converter</h1>
+    
+    <form id="file-form">
+        <input type="file" id="file-input" multiple>
+        <button id="convert-button">Convert to CSV</button>
     </form>
-
-    <h2>Results:</h2>
-    <div id="resultDiv"></div>
-
-    <h2>Download CSV:</h2>
+    
+    <div id="result-div"></div>
     <a href="#" download>processed_data.csv</a>
-
+    
     <script>
-        function processFiles() {
-            const fitFiles = document.getElementById('fitFiles').files;
-            if (fitFiles.length === 0) return;
-
-            // Create Flask server
-            let app = new Server-sideObject();
-            app.listen(8080, () => {
-                console.log('Server running on port 8080...');
+        const express = require('express');
+        const app = express();
+        
+        app.use(express.json());
+        
+        function processFlaskRequest(resultDiv) {
+            // Handle file upload
+            document.getElementById('file-form').addEventListener('submit', (e) => {
+                e.preventDefault();
                 
-                const resultDiv = document.getElementById('resultDiv');
-                processFlaskRequest(resultDiv);
-            });
-
-            function createRoutes(app) {
-                app.use(express.json());
-                app.use(post);
-
-                route('/processFiles', (req, res) => {
-                    // Handle file upload
-                    req.readFile().then((fileSet) => {
-                        if (!fileSet || !Array.from(fileSet).every(f => f.type === 'fit')) {
-                            alert('Please select valid FIT files');
-                            return;
-                        }
-
-                        // Convert messages to CSVs using pandas logic here
-                        const convertedFiles = fileSet.map(file => convertToFit(file));
-                        
-                        // Create Flask response with processed data
-                        createFlaskResponse(convertedFiles);
-                    });
+                const files = document.getElementById('file-input').files;
+                if (!files.length) return;
+                
+                // Create a server using Flask
+                let flask_app = app.listen(8080, () => {
+                    console.log('Server running on port 8080...');
+                    
+                    // Simulate a file upload response from the Flask server
+                    const response = { status: 'success', message: 'File uploaded successfully' };
+                    
+                    // Send the response to the client using Socket.io
+                    socket.emit('message', response);
                 });
-
+                
                 function convertToFit(files) {
-                    // Implement your conversion logic from messages to CSV format
+                    // Implement your conversion logic here
                     return files.map(file => ({
-                        timestamp: [1], // Assuming timestamp is the first column in the resulting CSV
+                        timestamp: [1], 
                         heartRate: [2],
                         cadence: [3]
                     }));
                 }
-
-                function createFlaskResponse(filesArray) {
-                    let resultDivContent = '';
-                    
-                    for (const file of filesArray) {
-                        const csvContent = String(file);
-                        resultDivContent += `Data from file ${{params.fileSetName}}:\n${csvContent}\n\n`;
-                    }
-
-                    document.getElementById('resultDiv').innerHTML = resultDivContent;
-                }
-            }
-
-            createRoutes(app);
+                
+                const fileSet = Array.from(files).map((file, index) => ({ name: `File ${index}`, type: 'fit', data: file })));
+                
+                // Simulate the conversion logic
+                const convertedFiles = fileSet.map(file => convertToFit(file.data));
+                
+                // Send the response to the client using Socket.io
+                socket.emit('message', { status: 'success', message: 'Conversion completed successfully' });
+            });
         }
+        
+        const socket = io.connect('/socket');
+        
+        document.getElementById('convert-button').addEventListener('click', () => {
+            socket.emit('message', { status: 'waiting', message: 'Converting file...' });
+        });
+        
+        // Listen for messages from the Flask server
+        socket.on('message', (message) => {
+            const resultDiv = document.getElementById('result-div');
+            
+            if (message.status === 'success') {
+                resultDiv.innerHTML = `File uploaded successfully!`;
+            } else if (message.status === 'waiting' || message.status === 'completed') {
+                resultDiv.innerHTML = `Converting file... ${message.message}`;
+            }
+        });
     </script>
 </body>
 </html>
