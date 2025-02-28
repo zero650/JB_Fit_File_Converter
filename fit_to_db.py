@@ -1,16 +1,9 @@
-import csv
 import os
 import fitparse
-import pytz
 from datetime import datetime, timezone
-import psycopg2
 import sys
-
-# PostgreSQL setup
-try:
-    from psycopg2 import connect
-except ImportError:  # Python <3.7
-    pass
+from sqlalchemy import create_engine, MetaData, Table, Integer, String, Float, DateTime, Column
+from sqlalchemy.orm import sessionmaker
 
 def main():
     params = {
@@ -20,16 +13,16 @@ def main():
         'password': "Norman01!"
     }
     
-    conn = None
+    # Create SQLAlchemy engine
+    engine = create_engine(f'postgresql+psycopg2://{params["user"]}:{params["password"]}@{params["host"]}/{params["database"]}')
+    
     try:
-        # Connect to the PostgreSQL database
+        # Connect to the PostgreSQL database using SQLAlchemy
         print("Connecting to PostgreSQL database...")
-        conn = connect(**params)
-        cur = conn.cursor()
-        
-        # Schema definition
-        from sqlalchemy import MetaData, Table, Integer, String, Float, DateTime, Column
+        conn = engine.connect()
         metadata = MetaData()
+        
+        # Define table schema
         table = Table('fit_data', metadata,
                      Column('timestamp', DateTime),
                      Column('position_lat', Float),
@@ -46,18 +39,24 @@ def main():
                      Column('vertical_oscillation', Integer),
                      Column('stance_time_percent', Integer),
                      Column('stance_time', Integer),
+                     Column('activity_type', String)
                      )
-        
+
         # Create table if it doesn't exist
-        metadata.create_all(bind=conn)
+        metadata.create_all(bind=engine)
+        
+        # Set up sessionmaker
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
     except Exception as e:
         print(f"Error connecting to PostgreSQL database: {e}")
         sys.exit(1)
 
     allowed_fields = ['timestamp','position_lat','position_long', 'distance',
-'enhanced_altitude', 'altitude','enhanced_speed',
-                 'speed', 'heart_rate','temperature','cadence','fractional_cadence',
-                 'vertical_oscillation','stance_time_percent','stance_time','activity_type']
+                      'enhanced_altitude', 'altitude','enhanced_speed',
+                      'speed', 'heart_rate','temperature','cadence','fractional_cadence',
+                      'vertical_oscillation','stance_time_percent','stance_time','activity_type']
     
     # List all .fit files
     fit_files = [file for file in os.listdir() if file.endswith('.fit')]
@@ -69,32 +68,42 @@ def main():
             fitfile = fitparse.FitFile(file, data_processor=fitparse.StandardUnitsDataProcessor())
             
             # Process messages and insert into database
-            session = None
-            try:
-                from sqlalchemy import Session
+            for record in fitfile.get_messages('record'):
+                if not hasattr(record, 'latitude') or not hasattr(record, 'longitude'):
+                    continue  # Skip records without latitude/longitude
                 
-                # Create a new session and mapper
-                Session = sessionmaker(bind=conn)
-                mapper = None  # or import create if necessary from another module
+                # Create a new record object for insertion
+                obj = {
+                    'timestamp': record.timestamp,
+                    'position_lat': record.latitude,
+                    'position_long': record.longitude,
+                    'distance': record.distance,
+                    'enhanced_altitude': record.enhanced_altitude,
+                    'altitude': record.altitude,
+                    'enhanced_speed': record.enhanced_speed,
+                    'speed': record.speed,
+                    'heart_rate': record.heart_rate,
+                    'temperature': record.temperature,
+                    'cadence': record.cadence,
+                    'fractional_cadence': record.fractional_cadence,
+                    'vertical_oscillation': record.vertical_oscillation,
+                    'stance_time_percent': record.stance_time_percent,
+                    'stance_time': record.stance_time,
+                    'activity_type': record.activity_type
+                }
                 
-                # Insert data
-                session = Session()
-                for record in fitfile.get_messages('record'):
-                    if not hasattr(record, 'latitude') or not hasattr(record, 'longitude'):
-                        continue  # Skip records without latitude/longitude
-                    session.begin()
-                    try:
-                        obj = record
-                        session.merge(obj)
-                        session.commit()
-                    finally:
-                        session.rollback()
-                session.close()
-            except Exception as e:
-                print(f"Error processing {file}: {e}")
+                # Insert record into the database
+                try:
+                    session.execute(table.insert().values(obj))
+                    session.commit()
+                except Exception as e:
+                    print(f"Error inserting record: {e}")
+                    session.rollback()
+
         except Exception as e:
             print(f"Error reading {file}: {e}")
 
+    session.close()
     conn.close()
 
 if __name__ == "__main__":
