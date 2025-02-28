@@ -1,46 +1,72 @@
-import struct
 import csv
-import sys
+import os
+# install fitparser from 
+import fitparse
+import pytz
 
-def read_fit_file(filename):
-    with open(filename, 'rb') as f:
-        data = f.read()
+allowed_fields = ['timestamp','position_lat','position_long', 'distance',
+'enhanced_altitude', 'altitude','enhanced_speed',
+                 'speed', 'heart_rate','temperature','cadence','fractional_cadence',
+                 'vertical_oscillation','stance_time_percent','stance_time','activity_type']
+required_fields = ['timestamp']
 
-    # Extract major version (2 bytes, big-endian)
-    major_ver = struct.unpack('>H', data[0:2])[0]
-
-    # Extract minor version (1 byte, big-endian)
-    minor_ver = struct.unpack('>B', data[2:3])[0]
-
-    # Extract revision count and size type (each 2 bytes, big-endian; total 4 bytes)
-    rev_size_type = struct.unpack('>II', data[4:8])[0]  # First two bytes for revisions
-
-    # Determine number of records (4 bytes, big-endian starting from position 8)
-    num_records = struct.unpack('>I', data[8:12])[0]
-
-    print(f"Major Version: {major_ver}")
-    print(f"Minor Version: {minor_ver}")
-    print(f"Revisions/Size Type: {rev_size_type}")
-    print(f"Number of Records: {num_records}")
-
-    return rev_size_type, major_ver, minor_ver, num_records
+UTC = pytz.UTC
+CST = pytz.timezone('US/Pacific')
 
 def main():
-    filename = sys.argv[1]
+    files = os.listdir()
+    fit_files = [file for file in files if file[-4:].lower()=='.fit']
+    for file in fit_files:
+        new_filename = file[:-4] + '.csv'
+        if os.path.exists(new_filename):
+            #print('%s already exists. skipping.' % new_filename)
+            continue
+        fitfile = fitparse.FitFile(file,data_processor=fitparse.StandardUnitsDataProcessor())
+        
+        print('converting %s' % file)
+        print(fitfile)
+        write_fitfile_to_csv(fitfile, new_filename)
+    print('finished conversions')
 
-    # Read the header
-    _, _, _, num_records = read_fit_file(filename)
 
-    activities = []  # Activity data extraction logic here
+def write_fitfile_to_csv(fitfile, output_file='test_output.csv'):
+    messages = fitfile.messages
+    #raw data in messages in one line
+    data = []
+    for m in messages:
+        skip=False
+        if not hasattr(m, 'fields'):
+            continue
+        fields = m.fields
+        #check for important data types
+        mdata = {}
+        for field in fields:
+            #print(field) print varaibles
+            if field.name in allowed_fields:
+                if field.name=='timestamp':
+                    mdata[field.name] = UTC.localize(field.value).astimezone(CST)
+                else:
+                    mdata[field.name] = field.value    
+        for rf in required_fields:
+            if rf not in mdata:
+                skip=True
+                
+        if not skip:
+            data.append(mdata)       
+    #write to csv
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(allowed_fields)
+        print(allowed_fields)
+        for entry in data:
+            line_file=[]
+            for k in allowed_fields:
+                data_var= str(entry.get(k,""))
+                #print(entry," ", k," " ,data_var)
+                line_file.append(data_var)
+            print(line_file)
+            writer.writerow(line_file)
+    print('wrote %s' % output_file)
 
-    headers = ['Major Version', 'Minor Version', 'Revisions/Size Type', 'Number of Records']
-    for i in range(num_records):
-        headers.append(f'Activity {i}')
-
-    with open('output.csv', 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(headers)
-        writer.writerows(activities)
-
-if __name__ == "__main__":
+if __name__=='__main__':
     main()
