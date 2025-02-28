@@ -8,16 +8,16 @@ import sys
 
 # PostgreSQL setup
 try:
-    from psycopg2 import extrapolate, connect
+    from psycopg2 import connect
 except ImportError:  # Python <3.7
     pass
 
 def main():
     params = {
         'host': "localhost",
-        'database': "fit_data",
+        'database': "fitness",
         'user': "postgres",
-        'password': "your_password"
+        'password': "Norman01!"
     }
     
     conn = None
@@ -75,7 +75,7 @@ def main():
                 
                 # Create a new session and mapper
                 Session = sessionmaker(bind=conn)
-                mapper = create Tibet()
+                mapper = None  # or import create if necessary from another module
                 
                 # Insert data
                 session = Session()
