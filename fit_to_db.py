@@ -28,7 +28,7 @@ def main():
         cur = conn.cursor()
         
         # Schema definition
-        from sqlalchemy import MetaData, Table, Integer, String, Float, DateTime
+        from sqlalchemy import MetaData, Table, Integer, String, Float, DateTime, Column
         metadata = MetaData()
         table = Table('fit_data', metadata,
                      Column('timestamp', DateTime),
