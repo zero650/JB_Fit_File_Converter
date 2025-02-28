@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FIT File Analyzer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="file"] {
+            accept: "fit,*.*";
+            name="fitFiles"
+            multiple;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>FIT File Analyzer</h1>
+    <form id="fileUploader">
+        <div class="form-group">
+            <label for="fitFiles">Upload FIT files:</label>
+            <input type="file" id="fitFiles" accept=".fit" multiple>
+        </div>
+        <button onclick="processFiles()" style="margin-top: 10px;">Analyze Files</button>
+    </form>
+
+    <h2>Results:</h2>
+    <div id="resultDiv"></div>
+
+    <h2>Download CSV:</h2>
+    <a href="#" download>processed_data.csv</a>
+
+    <script>
+        function processFiles() {
+            const fitFiles = document.getElementById('fitFiles').files;
+            if (fitFiles.length === 0) return;
+
+            // Create Flask server
+            let app = new Server-sideObject();
+            app.listen(8080, () => {
+                console.log('Server running on port 8080...');
+                
+                const resultDiv = document.getElementById('resultDiv');
+                processFlaskRequest(resultDiv);
+            });
+
+            function createRoutes(app) {
+                app.use(express.json());
+                app.use(post);
+
+                route('/processFiles', (req, res) => {
+                    // Handle file upload
+                    req.readFile().then((fileSet) => {
+                        if (!fileSet || !Array.from(fileSet).every(f => f.type === 'fit')) {
+                            alert('Please select valid FIT files');
+                            return;
+                        }
+
+                        // Convert messages to CSVs using pandas logic here
+                        const convertedFiles = fileSet.map(file => convertToFit(file));
+                        
+                        // Create Flask response with processed data
+                        createFlaskResponse(convertedFiles);
+                    });
+                });
+
+                function convertToFit(files) {
+                    // Implement your conversion logic from messages to CSV format
+                    return files.map(file => ({
+                        timestamp: [1], // Assuming timestamp is the first column in the resulting CSV
+                        heartRate: [2],
+                        cadence: [3]
+                    }));
+                }
+
+                function createFlaskResponse(filesArray) {
+                    let resultDivContent = '';
+                    
+                    for (const file of filesArray) {
+                        const csvContent = String(file);
+                        resultDivContent += `Data from file ${{params.fileSetName}}:\n${csvContent}\n\n`;
+                    }
+
+                    document.getElementById('resultDiv').innerHTML = resultDivContent;
+                }
+            }
+
+            createRoutes(app);
+        }
+    </script>
+</body>
+</html>
