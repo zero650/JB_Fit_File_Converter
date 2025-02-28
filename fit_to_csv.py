@@ -1,70 +1,72 @@
 import csv
 import os
+# install fitparser from 
+import fitparse
 import pytz
-from fitparse import FitFile
 
 allowed_fields = ['timestamp','position_lat','position_long', 'distance',
-'enhanced_power_total','enhanced_heart_rate_count','hrv_algorithm']
-header_keys = ['timestamp', 'position_lat', 'position_long', 'distance']
+'enhanced_altitude', 'altitude','enhanced_speed',
+                 'speed', 'heart_rate','temperature','cadence','fractional_cadence',
+                 'vertical_oscillation','stance_time_percent','stance_time','activity_type']
+required_fields = ['timestamp']
 
-def convert_to_csv(file):
-    file_data = {}
-    
-    for message in file.get_messages():
-        if message.key == 'activity':
-            activity_type = message.value
-        elif message.key == 'heart_rate':
-            heart_rate = message.value
-        elif message.key == 'position_lat' or message.key == 'position_long':
-            position = (message.value[0], message.value[1])
-            file_data[position] = []
-        
-    # Add header keys if necessary
-    for key in header_keys:
-        if key not in file_data:
-            file_data[key] = []
-    
-    csv_data = {}
-    
-    for position, values in file_data.items():
-        csv_data[position] = {key: value for key, value in zip(header_keys, [0]*len(header_keys))}
-        
-        # Handle enhanced fields
-        if message.key == 'enhanced_power_total':
-            csv_data[position]['distance'] += message.value
-        elif message.key == 'enhanced_heart_rate_count' and activity_type == 'running':
-            csv_data[position]['hrv_algorithm'] = 1
-    
-    return csv_data
+UTC = pytz.UTC
+CST = pytz.timezone('US/Pacific')
 
-def write_csv_to_file(file_name, data):
-    with open(file_name, 'w', newline='') as csvfile:
-        fieldnames = header_keys
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+def main():
+    files = os.listdir()
+    fit_files = [file for file in files if file[-4:].lower()=='.fit']
+    for file in fit_files:
+        new_filename = file[:-4] + '.csv'
+        if os.path.exists(new_filename):
+            #print('%s already exists. skipping.' % new_filename)
+            continue
+        fitfile = fitparse.FitFile(file,data_processor=fitparse.StandardUnitsDataProcessor())
         
-        # Write CSV header
-        writer.writeheader()
-        
-        for position in data.keys():
-            values = data[position]
-            
-            # Handle enhanced fields
-            if 'distance' not in values:
-                values['distance'] = 0
-            
-            if 'hrv_algorithm' not in values:
-                values['hrv_algorithm'] = 0
-            
-            writer.writerow(values)
+        print('converting %s' % file)
+        print(fitfile)
+        write_fitfile_to_csv(fitfile, new_filename)
+    print('finished conversions')
 
-def convert_fit_to_csv(fit_file_name):
-    csv_file_name = f"{fit_file_name}.csv"
-    
-    with open(fit_file_name, 'rb') as fit_file:
-        file_data = FitFile(fit_file).process_messages()
-        
-    data = convert_to_csv(file_data)
-    
-    write_csv_to_file(csv_file_name, data)
 
-convert_fit_to_csv('data.fit')
+def write_fitfile_to_csv(fitfile, output_file='test_output.csv'):
+    messages = fitfile.messages
+    #raw data in messages in one line
+    data = []
+    for m in messages:
+        skip=False
+        if not hasattr(m, 'fields'):
+            continue
+        fields = m.fields
+        #check for important data types
+        mdata = {}
+        for field in fields:
+            #print(field) print varaibles
+            if field.name in allowed_fields:
+                if field.name=='timestamp':
+                    mdata[field.name] = UTC.localize(field.value).astimezone(CST)
+                else:
+                    mdata[field.name] = field.value    
+        for rf in required_fields:
+            if rf not in mdata:
+                skip=True
+                
+        if not skip:
+            data.append(mdata)       
+    #write to csv
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(allowed_fields)
+        print(allowed_fields)
+        for entry in data:
+            line_file=[]
+            for k in allowed_fields:
+                data_var= str(entry.get(k,""))
+                #print(entry," ", k," " ,data_var)
+                line_file.append(data_var)
+            print(line_file)
+            writer.writerow(line_file)
+    print('wrote %s' % output_file)
+
+if __name__=='__main__':
+    main()

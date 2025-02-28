@@ -23,9 +23,9 @@
         
         app.use(express.json());
         
-        function processFlaskRequest(resultDiv) {
+        function processFileRequest(resultDiv) {
             // Handle file upload
-            document.getElementById('file-form').addEventListener('submit', (e) => {
+            document.getElementById('file-form').addEventListener('submit'), (e) => {
                 e.preventDefault();
                 
                 const files = document.getElementById('file-input').files;
@@ -41,7 +41,7 @@
                     // Send the response to the client using Socket.io
                     socket.emit('message', response);
                 });
-                
+            
                 function convertToFit(files) {
                     // Implement your conversion logic here
                     return files.map(file => ({
@@ -50,15 +50,7 @@
                         cadence: [3]
                     }));
                 }
-                
-                const fileSet = Array.from(files).map((file, index) => ({ name: `File ${index}`, type: 'fit', data: file })));
-                
-                // Simulate the conversion logic
-                const convertedFiles = fileSet.map(file => convertToFit(file.data));
-                
-                // Send the response to the client using Socket.io
-                socket.emit('message', { status: 'success', message: 'Conversion completed successfully' });
-            });
+            };
         }
         
         const socket = io.connect('/socket');
