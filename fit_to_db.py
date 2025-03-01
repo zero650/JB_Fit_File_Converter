@@ -1,11 +1,11 @@
-from flask import Flask, request, render_template, redirect, url_for
+from flask import Flask, request, render_template, redirect, url_for, flash
 import os
 import fitparse
-from datetime import datetime
 from sqlalchemy import create_engine, MetaData, Table, Integer, String, Float, DateTime, Column
 from sqlalchemy.orm import sessionmaker
 
 app = Flask(__name__)
+app.secret_key = "your_secret_key"  # Required for flash messages
 
 # Set the directory where uploaded files will be stored
 UPLOAD_FOLDER = 'uploads'
@@ -17,7 +17,7 @@ params = {
     'host': "localhost",
     'database': "fitness",
     'user': "postgres",
-    'password': "password!"
+    'password': "Norman01!"
 }
 
 # Create SQLAlchemy engine
@@ -60,36 +60,40 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
-        return 'No file part'
+        flash('No file part', 'error')
+        return redirect(request.url)
     
     file = request.files['file']
     if file.filename == '':
-        return 'No selected file'
+        flash('No selected file', 'error')
+        return redirect(request.url)
     
     if file and allowed_file(file.filename):
         filename = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(filename)
         
         # Process the .fit file and insert into the database
-        process_fit_file(filename)
+        try:
+            process_fit_file(filename)
+            flash('File successfully uploaded and processed!', 'success')
+        except Exception as e:
+            flash(f'Error processing file: {e}', 'error')
         
-        return 'File successfully uploaded and processed'
+        return redirect(url_for('index'))
     else:
-        return 'Invalid file type. Only .fit files are allowed.'
+        flash('Invalid file type. Only .fit files are allowed.', 'error')
+        return redirect(request.url)
 
 def process_fit_file(file_path):
     try:
         # Parse .fit file
         fitfile = fitparse.FitFile(file_path, data_processor=fitparse.StandardUnitsDataProcessor())
         
-        # Debugging: Print how many records we are processing
         record_count = 0
         for record in fitfile.get_messages('record'):
-            # Check if the record has latitude and longitude
             if not hasattr(record, 'latitude') or not hasattr(record, 'longitude'):
                 continue  # Skip records without latitude/longitude
             
-            # Create the data object to be inserted into the database
             obj = {
                 'timestamp': record.timestamp,
                 'position_lat': record.latitude,
@@ -109,24 +113,15 @@ def process_fit_file(file_path):
                 'activity_type': record.activity_type
             }
             
-            # Print to debug the content of obj
-            print(f"Processing record: {obj}")
-
-            # Insert the record into the database
-            try:
-                session.execute(table.insert().values(obj))
-                session.commit()
-                record_count += 1  # Increment record count on success
-            except Exception as e:
-                print(f"Error inserting record: {e}")
-                session.rollback()
+            session.execute(table.insert().values(obj))
+            session.commit()
+            record_count += 1  # Increment record count on success
         
-        # Debugging: Print how many records were inserted
         print(f"Total records inserted: {record_count}")
         
     except Exception as e:
         print(f"Error processing .fit file: {e}")
-
+        raise
 
 if __name__ == "__main__":
     app.run(debug=True)
