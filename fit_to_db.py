@@ -82,10 +82,14 @@ def process_fit_file(file_path):
         # Parse .fit file
         fitfile = fitparse.FitFile(file_path, data_processor=fitparse.StandardUnitsDataProcessor())
         
+        # Debugging: Print how many records we are processing
+        record_count = 0
         for record in fitfile.get_messages('record'):
+            # Check if the record has latitude and longitude
             if not hasattr(record, 'latitude') or not hasattr(record, 'longitude'):
                 continue  # Skip records without latitude/longitude
             
+            # Create the data object to be inserted into the database
             obj = {
                 'timestamp': record.timestamp,
                 'position_lat': record.latitude,
@@ -105,15 +109,24 @@ def process_fit_file(file_path):
                 'activity_type': record.activity_type
             }
             
-            # Insert record into the database
+            # Print to debug the content of obj
+            print(f"Processing record: {obj}")
+
+            # Insert the record into the database
             try:
                 session.execute(table.insert().values(obj))
                 session.commit()
+                record_count += 1  # Increment record count on success
             except Exception as e:
                 print(f"Error inserting record: {e}")
                 session.rollback()
+        
+        # Debugging: Print how many records were inserted
+        print(f"Total records inserted: {record_count}")
+        
     except Exception as e:
         print(f"Error processing .fit file: {e}")
+
 
 if __name__ == "__main__":
     app.run(debug=True)
