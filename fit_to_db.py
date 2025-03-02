@@ -33,10 +33,6 @@ table = Table('fit_data', metadata,
 # Create the table if it doesn't exist
 metadata.create_all(bind=engine)
 
-# Create a sessionmaker
-Session = sessionmaker(bind=engine)
-session = Session()
-
 # Flask Setup
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
@@ -113,6 +109,13 @@ def process_fit_file(file_path):
     except Exception as e:
         print(f"Error processing {file_path}: {e}")
 
+
+        # Close session after processing the fit file
+        session.close()
+        print(f"Finished processing {file_path}")
+    except Exception as e:
+        print(f"Error processing {file_path}: {e}")
+
 @app.route('/')
 def index():
     return render_template('upload.html')
@@ -122,31 +125,37 @@ def upload_file():
     """Handle file upload."""
     if 'file' not in request.files:
         flash('No file part')
+        print("No file part")  # Debugging
         return redirect(request.url)
 
     file = request.files['file']
 
     if file.filename == '':
         flash('No selected file')
+        print("No selected file")  # Debugging
         return redirect(request.url)
 
     if file and file.filename.endswith('.fit'):
         # Save the uploaded file temporarily
         file_path = os.path.join('uploads', file.filename)
         file.save(file_path)
+        print(f"File saved to {file_path}")  # Debugging
         
         # Process the uploaded .fit file
         process_fit_file(file_path)
 
         # Delete the temporary file after processing
         os.remove(file_path)
+        print(f"File {file_path} deleted after processing")  # Debugging
 
         flash('File successfully uploaded and processed!')
         return redirect(url_for('index'))
 
     else:
         flash('Invalid file type. Only .fit files are allowed.')
+        print("Invalid file type")  # Debugging
         return redirect(request.url)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

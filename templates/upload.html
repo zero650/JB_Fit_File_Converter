@@ -41,5 +41,26 @@
         <input type="file" id="file" name="file" accept=".fit" required><br><br>
         <button type="submit">Upload</button>
     </form>
+
+    <br><br>
+
+    <!-- Display confirmation message if file is processed successfully -->
+    {% if 'File successfully uploaded and processed!' in get_flashed_messages() %}
+        <div class="message success">
+            The file was successfully uploaded and processed.
+        </div>
+    {% elif 'Invalid file type. Only .fit files are allowed.' in get_flashed_messages() %}
+        <div class="message error">
+            Invalid file type. Only .fit files are allowed.
+        </div>
+    {% elif 'No selected file' in get_flashed_messages() %}
+        <div class="message error">
+            No file selected. Please choose a .fit file to upload.
+        </div>
+    {% elif 'No file part' in get_flashed_messages() %}
+        <div class="message error">
+            No file part. Please select a .fit file.
+        </div>
+    {% endif %}
 </body>
 </html>
