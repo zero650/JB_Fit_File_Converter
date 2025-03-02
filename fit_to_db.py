@@ -49,18 +49,16 @@ def upload_file():
         return redirect(request.url)
 
     file = request.files['file']
-    
-    if file.filename == '':
-        flash('No selected file')
-        return redirect(request.url)
 
     if file and file.filename.endswith('.fit'):
         filename = os.path.join('uploads', file.filename)
         file.save(filename)
         
         try:
+            # Parse the .fit file
             fitfile = fitparse.FitFile(filename, data_processor=fitparse.StandardUnitsDataProcessor())
 
+            # Iterate through each record in the .fit file
             for record in fitfile.get_messages('record'):
                 # Extract relevant fields
                 timestamp = record.get_value('timestamp')
