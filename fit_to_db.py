@@ -1,13 +1,21 @@
+from flask import Flask, render_template, request, redirect, url_for, flash
 import os
 from flask import Flask, request, render_template, redirect, url_for, flash
 import fitparse
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, Float, String, DateTime
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import SQLAlchemyError
 
-# Database setup
-DATABASE_URL = "postgresql://postgres:Norman01!@localhost/fitness"  # Update with your credentials
-engine = create_engine(DATABASE_URL, echo=True)  # Set echo=True to see SQL queries being executed
+# Flask app setup
+app = Flask(__name__)
+app.secret_key = 'supersecretkey'  # Required for flash messages
+
+# PostgreSQL setup (replace with your actual credentials)
+DATABASE_URL = "postgresql://postgres:Norman01!@localhost/fitness"
+engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
+session = Session()
+
+# Table definition (use SQLAlchemy ORM)
 metadata = MetaData()
 
 # Define the table schema
@@ -28,93 +36,10 @@ table = Table('fit_data', metadata,
               Column('stance_time_percent', Integer),
               Column('stance_time', Integer),
               Column('activity_type', String)
-              )
+)
 
-# Create the table if it doesn't exist
-metadata.create_all(bind=engine)
-
-# Flask Setup
-app = Flask(__name__)
-app.secret_key = 'supersecretkey'
-
-def process_fit_file(file_path):
-    """Process the .fit file and add data to the database."""
-    try:
-        print(f"Processing {file_path}...")
-        fitfile = fitparse.FitFile(file_path, data_processor=fitparse.StandardUnitsDataProcessor())
-        
-        for record in fitfile.get_messages('record'):
-            # Extract latitude and longitude from the record fields
-            lat = record.get_value('latitude')
-            lon = record.get_value('longitude')
-
-            # Print out the data for debugging
-            print(f"Record Data: {record}")
-            print(f"Latitude: {lat}, Longitude: {lon}")
-
-            # Skip records without lat/lon
-            if lat is None or lon is None:
-                print(f"Skipping record due to missing lat/lon: {record}")
-                continue  # Skip this record if lat/lon is missing
-
-            # Extract other fields from the record
-            timestamp = record.get_value('timestamp')
-            distance = record.get_value('distance')
-            enhanced_altitude = record.get_value('enhanced_altitude')
-            altitude = record.get_value('altitude')
-            enhanced_speed = record.get_value('enhanced_speed')
-            speed = record.get_value('speed')
-            heart_rate = record.get_value('heart_rate')
-            temperature = record.get_value('temperature')
-            cadence = record.get_value('cadence')
-            fractional_cadence = record.get_value('fractional_cadence')
-            vertical_oscillation = record.get_value('vertical_oscillation')
-            stance_time_percent = record.get_value('stance_time_percent')
-            stance_time = record.get_value('stance_time')
-            activity_type = record.get_value('activity_type')
-
-            # Prepare the data to be inserted into the database
-            insert_data = {
-                'timestamp': timestamp if timestamp else None,
-                'position_lat': lat if lat else None,
-                'position_long': lon if lon else None,
-                'distance': distance if distance else None,
-                'enhanced_altitude': enhanced_altitude if enhanced_altitude else None,
-                'altitude': altitude if altitude else None,
-                'enhanced_speed': enhanced_speed if enhanced_speed else None,
-                'speed': speed if speed else None,
-                'heart_rate': heart_rate if heart_rate else None,
-                'temperature': temperature if temperature else None,
-                'cadence': cadence if cadence else None,
-                'fractional_cadence': fractional_cadence if fractional_cadence else None,
-                'vertical_oscillation': vertical_oscillation if vertical_oscillation else None,
-                'stance_time_percent': stance_time_percent if stance_time_percent else None,
-                'stance_time': stance_time if stance_time else None,
-                'activity_type': activity_type if activity_type else None
-            }
-
-            # Print out the data before inserting
-            print(f"Data to insert: {insert_data}")
-
-            # Insert the data into the database
-            try:
-                session.execute(table.insert().values(insert_data))
-                session.commit()
-                print(f"Inserted record: {insert_data}")  # Debug output
-            except SQLAlchemyError as e:
-                print(f"Error inserting data: {e}")
-                session.rollback()  # In case of error, rollback the transaction
-
-        print(f"Finished processing {file_path}")
-    except Exception as e:
-        print(f"Error processing {file_path}: {e}")
-
-
-        # Close session after processing the fit file
-        session.close()
-        print(f"Finished processing {file_path}")
-    except Exception as e:
-        print(f"Error processing {file_path}: {e}")
+# Make sure the table exists
+metadata.create_all(engine)
 
 @app.route('/')
 def index():
@@ -122,40 +47,75 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    """Handle file upload."""
     if 'file' not in request.files:
         flash('No file part')
-        print("No file part")  # Debugging
         return redirect(request.url)
 
     file = request.files['file']
 
-    if file.filename == '':
-        flash('No selected file')
-        print("No selected file")  # Debugging
-        return redirect(request.url)
-
     if file and file.filename.endswith('.fit'):
-        # Save the uploaded file temporarily
-        file_path = os.path.join('uploads', file.filename)
-        file.save(file_path)
-        print(f"File saved to {file_path}")  # Debugging
+        filename = os.path.join('uploads', file.filename)
+        file.save(filename)
         
-        # Process the uploaded .fit file
-        process_fit_file(file_path)
+        try:
+            # Parse the .fit file
+            fitfile = fitparse.FitFile(filename, data_processor=fitparse.StandardUnitsDataProcessor())
 
-        # Delete the temporary file after processing
-        os.remove(file_path)
-        print(f"File {file_path} deleted after processing")  # Debugging
+            # Iterate through each record in the .fit file
+            for record in fitfile.get_messages('record'):
+                # Extract relevant fields
+                timestamp = record.get_value('timestamp')
+                lat = record.get_value('latitude')
+                lon = record.get_value('longitude')
+                distance = record.get_value('distance')
+                enhanced_altitude = record.get_value('enhanced_altitude')
+                altitude = record.get_value('altitude')
+                enhanced_speed = record.get_value('enhanced_speed')
+                speed = record.get_value('speed')
+                heart_rate = record.get_value('heart_rate')
+                temperature = record.get_value('temperature')
+                cadence = record.get_value('cadence')
+                fractional_cadence = record.get_value('fractional_cadence')
+                vertical_oscillation = record.get_value('vertical_oscillation')
+                stance_time_percent = record.get_value('stance_time_percent')
+                stance_time = record.get_value('stance_time')
+                activity_type = record.get_value('activity_type')
 
-        flash('File successfully uploaded and processed!')
-        return redirect(url_for('index'))
+                # Insert record into the database
+                insert_data = {
+                    'timestamp': timestamp,
+                    'position_lat': lat,
+                    'position_long': lon,
+                    'distance': distance,
+                    'enhanced_altitude': enhanced_altitude,
+                    'altitude': altitude,
+                    'enhanced_speed': enhanced_speed,
+                    'speed': speed,
+                    'heart_rate': heart_rate,
+                    'temperature': temperature,
+                    'cadence': cadence,
+                    'fractional_cadence': fractional_cadence,
+                    'vertical_oscillation': vertical_oscillation,
+                    'stance_time_percent': stance_time_percent,
+                    'stance_time': stance_time,
+                    'activity_type': activity_type
+                }
 
-    else:
-        flash('Invalid file type. Only .fit files are allowed.')
-        print("Invalid file type")  # Debugging
-        return redirect(request.url)
+                # Insert the data into the table
+                session.execute(table.insert().values(insert_data))
+            
+            # Commit the transaction
+            session.commit()
 
+            flash(f'File {file.filename} uploaded and processed successfully!')
+            return redirect(url_for('index'))
+
+        except Exception as e:
+            flash(f'Error processing the file: {e}')
+            session.rollback()
+
+    flash('Invalid file type. Please upload a .fit file.')
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     app.run(debug=True)
