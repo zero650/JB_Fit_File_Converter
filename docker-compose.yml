@@ -1,0 +1,6 @@
+version: '3'
+services:
+  fit_to_db:
+    build: .
+    ports:
+      - "5500:5500"

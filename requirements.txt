@@ -1,0 +1,4 @@
+flask==2.0.1
+fitparse
+sqlalchemy
+wheel  # Optional, just to ensure wheel is installed for compiling some packages

@@ -4,7 +4,7 @@ import fitparse
 from sqlalchemy import create_engine, MetaData, Table, Integer, String, Float, DateTime, Column
 from sqlalchemy.orm import sessionmaker
 
-# Flask app setup
+# # Flask app setup
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # Required for flash messages
 
